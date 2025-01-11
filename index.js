@@ -79,60 +79,123 @@ async function run() {
     });
 
     // Add or update expense post route with limit check
+    // app.post("/expenses", async (req, res) => {
+    //   const { category, purpose, amount, userId, date } = req.body;
+
+    //   try {
+    //     console.log("Received expense data:", req.body);
+    //     if (!category || !purpose || !amount || !userId) {
+    //       return res.status(400).send({
+    //         message:
+    //           "All fields (category, purpose, amount, userId) are required.",
+    //       });
+    //     }
+
+    //     const userLimit = await spendingLimitCollection.findOne({ userId });
+
+    //     if (!userLimit) {
+    //       return res.status(400).send({
+    //         message:
+    //           "Spending limit not set for this user. Please set a limit first.",
+    //       });
+    //     }
+
+    //     const totalCategoryExpenses = await expensesCollection
+    //       .aggregate([
+    //         { $match: { userId, category } },
+    //         { $group: { _id: null, total: { $sum: "$amount" } } },
+    //       ])
+    //       .toArray();
+
+    //     const currentCategoryTotal = totalCategoryExpenses[0]?.total || 0;
+
+    //     const categoryLimit = userLimit[category.toLowerCase()];
+    //     if (
+    //       categoryLimit !== undefined &&
+    //       currentCategoryTotal + amount > categoryLimit
+    //     ) {
+    //       return res.status(400).send({
+    //         message: `Adding this expense exceeds the spending limit for ${category}.`,
+    //       });
+    //     }
+
+    //     const result = await expensesCollection.findOneAndUpdate(
+    //       { userId, category },
+    //       { $inc: { amount }, $set: { purpose, date } },
+    //       { upsert: true, returnDocument: "after" }
+    //     );
+
+    //     res.send({
+    //       message: "Expense updated successfully.",
+    //       expense: result.value,
+    //     });
+    //   } catch (error) {
+    //     console.error("Error:", error);
+    //     res.status(500).send({ message: "Internal server error." });
+    //   }
+    // });
+
+
+
     app.post("/expenses", async (req, res) => {
       const { category, purpose, amount, userId, date } = req.body;
-
+    
       try {
+        console.log("Received expense data:", req.body);
+    
+        // Validation remains the same
         if (!category || !purpose || !amount || !userId) {
           return res.status(400).send({
-            message:
-              "All fields (category, purpose, amount, userId) are required.",
+            message: "All fields (category, purpose, amount, userId) are required.",
           });
         }
-
+    
         const userLimit = await spendingLimitCollection.findOne({ userId });
-
         if (!userLimit) {
           return res.status(400).send({
-            message:
-              "Spending limit not set for this user. Please set a limit first.",
+            message: "Spending limit not set for this user. Please set a limit first.",
           });
         }
-
+    
+        // Get total expenses for category
         const totalCategoryExpenses = await expensesCollection
           .aggregate([
             { $match: { userId, category } },
             { $group: { _id: null, total: { $sum: "$amount" } } },
           ])
           .toArray();
-
+    
         const currentCategoryTotal = totalCategoryExpenses[0]?.total || 0;
-
         const categoryLimit = userLimit[category.toLowerCase()];
-        if (
-          categoryLimit !== undefined &&
-          currentCategoryTotal + amount > categoryLimit
-        ) {
+    
+        // Check limit
+        if (categoryLimit !== undefined && currentCategoryTotal + amount > categoryLimit) {
           return res.status(400).send({
             message: `Adding this expense exceeds the spending limit for ${category}.`,
           });
         }
-
-        const result = await expensesCollection.findOneAndUpdate(
-          { userId, category },
-          { $inc: { amount }, $set: { purpose, date } },
-          { upsert: true, returnDocument: "after" }
-        );
-
-        res.send({
-          message: "Expense updated successfully.",
-          expense: result.value,
+    
+        // Insert new expense document instead of updating existing one
+        const result = await expensesCollection.insertOne({
+          userId,
+          category,
+          purpose,
+          amount,
+          date,
+          createdAt: new Date()
         });
+    
+        res.send({
+          message: "Expense added successfully.",
+          expense: result
+        });
+    
       } catch (error) {
         console.error("Error:", error);
         res.status(500).send({ message: "Internal server error." });
       }
     });
+    
 
     // daily expenses summary get route
     app.get("/expenses/:userId/:date", async (req, res) => {
