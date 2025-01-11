@@ -9,9 +9,7 @@ const port = process.env.PORT || 3001;
 const corsOptions = {
   origin: [
     "http://localhost:3000",
-    "https://ena-ema-task-for-client.vercel.app"
-
-    
+    "https://ena-ema-task-for-client.vercel.app",
   ],
   credentials: true,
   optionSuccessStatus: 200,
@@ -42,133 +40,137 @@ async function run() {
       .db("ExpenseTracker")
       .collection("spendingLimits");
 
-    // Add login endpoint
-    app.post("/login", async (req, res) => {
-      try {
-        const { name, email } = req.body;
-
-        // Validate input
-        if (!name || !email) {
-          return res
-            .status(400)
-            .send({ message: "Name and email are required." });
-        }
-
-        // Check if the user already exists
-        const usersCollection = client.db("ExpenseTracker").collection("users");
-        const existingUser = await usersCollection.findOne({ email });
-
-        if (existingUser) {
-          return res
-            .status(200)
-            .send({ message: "User already exists.", user: existingUser });
-        }
-
-        // Save the new user
-        const newUser = { name, email, createdAt: new Date() };
-        const result = await usersCollection.insertOne(newUser);
-        res
-          .status(201)
-          .send({ message: "User added successfully!", user: newUser });
-      } catch (error) {
-        console.error("Error saving user:", error);
-        res.status(500).send({ message: "Internal server error" });
-      }
-    });
-
-    // Save spending limit
+    // Save  spending limit post route to the database
     app.post("/spendingLimit", async (req, res) => {
-      const { category, limit } = req.body;
       try {
-        const existingLimit = await spendingLimitCollection.findOne({
-          category,
-        });
-        if (existingLimit) {
-          return res
-            .status(400)
-            .send({ message: "Spending limit already set for this category" });
+        const spendingLimit = req.body;
+
+        if (!spendingLimit.userId) {
+          return res.status(400).send({ message: "User ID is required." });
         }
-        const result = await spendingLimitCollection.insertOne({
-          category,
-          limit,
-        });
-        res.send({ message: "Spending limit saved successfully", result });
+
+        const filter = { userId: spendingLimit.userId };
+        const updateDoc = { $set: spendingLimit };
+        const options = { upsert: true };
+
+        const result = await spendingLimitCollection.updateOne(
+          filter,
+          updateDoc,
+          options
+        );
+
+        if (result.matchedCount > 0) {
+          res.send({
+            message: "Existing user's spending limit updated successfully.",
+            result,
+          });
+        } else if (result.upsertedCount > 0) {
+          res.send({
+            message: "New user's spending limit added successfully.",
+            result,
+          });
+        } else {
+          res.status(500).send({ message: "Unexpected issue occurred." });
+        }
       } catch (error) {
-        res.status(500).send({ message: "Error saving spending limit", error });
+        console.error("Error saving spending limit:", error);
+        res.status(500).send({ message: "Internal server error." });
       }
     });
 
-    // Add expense with limit check
-
+    // Add or update expense post route with limit check
     app.post("/expenses", async (req, res) => {
+      const { category, purpose, amount, userId, date } = req.body;
+
       try {
-        const { category, amount, userEmail } = req.body;
-
-        // Get user's spending limit for the specific category
-        const spendingLimit = await spendingLimitCollection.findOne({
-          email: userEmail,
-          category,
-        });
-
-        if (!spendingLimit) {
-          return res
-            .status(400)
-            .send({ message: "Spending limit not set for this category" });
+        if (!category || !purpose || !amount || !userId) {
+          return res.status(400).send({
+            message:
+              "All fields (category, purpose, amount, userId) are required.",
+          });
         }
 
-        // Get all expenses of the user for that category
-        const totalSpent = await expensesCollection
+        const userLimit = await spendingLimitCollection.findOne({ userId });
+
+        if (!userLimit) {
+          return res.status(400).send({
+            message:
+              "Spending limit not set for this user. Please set a limit first.",
+          });
+        }
+
+        const totalCategoryExpenses = await expensesCollection
           .aggregate([
-            { $match: { userEmail, category } },
+            { $match: { userId, category } },
             { $group: { _id: null, total: { $sum: "$amount" } } },
           ])
           .toArray();
 
-        const totalSpentAmount = totalSpent.length ? totalSpent[0].total : 0;
+        const currentCategoryTotal = totalCategoryExpenses[0]?.total || 0;
 
-        // Check if the expense will exceed the limit
-        if (totalSpentAmount + amount > spendingLimit.limit) {
+        const categoryLimit = userLimit[category.toLowerCase()];
+        if (
+          categoryLimit !== undefined &&
+          currentCategoryTotal + amount > categoryLimit
+        ) {
           return res.status(400).send({
-            message: `You have exceeded your spending limit of ${spendingLimit.limit} for this category.`,
+            message: `Adding this expense exceeds the spending limit for ${category}.`,
           });
         }
 
-        // Proceed with adding the expense if within the limit
-        const expenseData = {
-          category,
-          amount,
-          userEmail,
-          date: new Date().toLocaleString(),
-        };
-        const result = await expensesCollection.insertOne(expenseData);
-        res.send(result);
+        const result = await expensesCollection.findOneAndUpdate(
+          { userId, category },
+          { $inc: { amount }, $set: { purpose, date } },
+          { upsert: true, returnDocument: "after" }
+        );
+
+        res.send({
+          message: "Expense updated successfully.",
+          expense: result.value,
+        });
       } catch (error) {
-        console.error("Error saving expense:", error);
-        res.status(500).send({ message: "Internal server error" });
+        console.error("Error:", error);
+        res.status(500).send({ message: "Internal server error." });
       }
     });
 
-    //   const { category, amount } = req.body;
-    //   try {
-    //     const spendingLimit = await spendingLimitCollection.findOne({ category });
-    //     const totalSpent = await expensesCollection
-    //       .aggregate([
-    //         { $match: { category } },
-    //         { $group: { _id: null, total: { $sum: "$amount" } } },
-    //       ])
-    //       .toArray();
+    // daily expenses summary get route
+    app.get("/expenses/:userId/:date", async (req, res) => {
+      const { userId, date } = req.params;
 
-    //     const totalAmount = totalSpent[0]?.total || 0;
-    //     if (totalAmount + amount > spendingLimit.limit) {
-    //       return res.status(400).send({ message: 'Spending limit exceeded for this category' });
-    //     }
+      try {
+        const expenses = await expensesCollection
+          .find({ userId, date })
+          .toArray();
 
-    //     const result = await expensesCollection.insertOne(req.body);
-    //     res.send({ message: 'Expense added successfully', result });
-    //   } catch (error) {
-    //     res.status(500).send({ message: 'Error adding expense', error });
-    //   }
-    // });
+        if (expenses.length === 0) {
+          return res.status(200).send({ expenses: {}, totalExpense: 0, date });
+        }
+
+        const groupedExpenses = expenses.reduce((acc, expense) => {
+          const { category, amount } = expense;
+          if (!acc[category]) {
+            acc[category] = 0;
+          }
+          acc[category] += amount;
+          return acc;
+        }, {});
+
+        const totalExpense = expenses.reduce(
+          (total, expense) => total + expense.amount,
+          0
+        );
+
+        res.status(200).send({
+          expenses: groupedExpenses,
+          totalExpense,
+          date,
+        });
+      } catch (error) {
+        console.error("Error fetching expenses:", error);
+        res.status(500).send({ message: "Internal server error." });
+      }
+    });
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
