@@ -81,11 +81,7 @@ async function run() {
     // Add or update expense post route with limit check
     app.post("/expenses", async (req, res) => {
       const { category, purpose, amount, userId, date } = req.body;
-// Add type validation
-const parsedAmount = parseFloat(amount);
-if (isNaN(parsedAmount)) {
-  return res.status(400).send({ message: "Amount must be a valid number" });
-}
+
       try {
         if (!category || !purpose || !amount || !userId) {
           return res.status(400).send({
