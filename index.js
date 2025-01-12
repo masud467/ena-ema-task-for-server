@@ -142,42 +142,42 @@ async function run() {
     });
 
     // daily expenses summary get route
-    app.get("/expenses/:userId/:date", async (req, res) => {
-      const { userId, date } = req.params;
+    // app.get("/expenses/:userId/:date", async (req, res) => {
+    //   const { userId, date } = req.params;
 
-      try {
-        const expenses = await expensesCollection
-          .find({ userId, date })
-          .toArray();
+    //   try {
+    //     const expenses = await expensesCollection
+    //       .find({ userId, date })
+    //       .toArray();
 
-        if (expenses.length === 0) {
-          return res.status(200).send({ expenses: {}, totalExpense: 0, date });
-        }
+    //     if (expenses.length === 0) {
+    //       return res.status(200).send({ expenses: {}, totalExpense: 0, date });
+    //     }
 
-        const groupedExpenses = expenses.reduce((acc, expense) => {
-          const { category, amount } = expense;
-          if (!acc[category]) {
-            acc[category] = 0;
-          }
-          acc[category] += amount;
-          return acc;
-        }, {});
+    //     const groupedExpenses = expenses.reduce((acc, expense) => {
+    //       const { category, amount } = expense;
+    //       if (!acc[category]) {
+    //         acc[category] = 0;
+    //       }
+    //       acc[category] += amount;
+    //       return acc;
+    //     }, {});
 
-        const totalExpense = expenses.reduce(
-          (total, expense) => total + expense.amount,
-          0
-        );
+    //     const totalExpense = expenses.reduce(
+    //       (total, expense) => total + expense.amount,
+    //       0
+    //     );
 
-        res.status(200).send({
-          expenses: groupedExpenses,
-          totalExpense,
-          date,
-        });
-      } catch (error) {
-        console.error("Error fetching expenses:", error);
-        res.status(500).send({ message: "Internal server error." });
-      }
-    });
+    //     res.status(200).send({
+    //       expenses: groupedExpenses,
+    //       totalExpense,
+    //       date,
+    //     });
+    //   } catch (error) {
+    //     console.error("Error fetching expenses:", error);
+    //     res.status(500).send({ message: "Internal server error." });
+    //   }
+    // });
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
