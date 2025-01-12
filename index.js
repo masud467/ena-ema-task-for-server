@@ -92,7 +92,7 @@ async function run() {
           });
         }
 
-        const numericAmount = parseFloat(amount);
+        const numericAmount = Number(amount);
         if (isNaN(numericAmount) || numericAmount <= 0) {
           return res.status(400).send({
             message: "The 'amount' field must be a positive numeric value.",
