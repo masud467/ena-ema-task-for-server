@@ -135,7 +135,7 @@ async function run() {
           });
         }
 
-        const result = await expensesCollection.insertOne(expenseDoc);
+        const result = await expensesCollection.findOneAndUpdate(expenseDoc);
 
         res.send({
           message: "Expense updated successfully.",
