@@ -181,43 +181,81 @@ async function run() {
 
 
 
-    app.get("/expenses/:userId/:date", async (req, res) => {
-      const { userId, date } = req.params;
+    // app.get("/expenses/:userId/:date", async (req, res) => {
+    //   const { userId, date } = req.params;
+    //   try {
+    //     const expenses = await expensesCollection
+    //       .find({ 
+    //         userId, 
+    //         date: new RegExp(date, 'i') 
+    //       })
+    //       .toArray();
+    
+    //     if (expenses.length === 0) {
+    //       return res.status(200).send({ 
+    //         expenses: {}, 
+    //         totalExpense: 0, 
+    //         date 
+    //       });
+    //     }
+    
+    //     const groupedExpenses = expenses.reduce((acc, expense) => {
+    //       const { category, amount } = expense;
+    //       acc[category] = (acc[category] || 0) + amount;
+    //       return acc;
+    //     }, {});
+    
+    //     const totalExpense = Object.values(groupedExpenses)
+    //       .reduce((total, amount) => total + amount, 0);
+    
+    //     res.status(200).send({
+    //       expenses: groupedExpenses,
+    //       totalExpense,
+    //       date
+    //     });
+    //   } catch (error) {
+    //     console.error("Error fetching expenses:", error);
+    //     res.status(500).send({ message: "Internal server error." });
+    //   }
+    // });
+
+
+    app.get("/expenses/:userId", async (req, res) => {
+      const { userId } = req.params;
+      const { date } = req.query;
+    
       try {
-        const expenses = await expensesCollection
-          .find({ 
-            userId, 
-            date: new RegExp(date, 'i') 
-          })
-          .toArray();
+        const expenses = await expensesCollection.find({ userId, date }).toArray();
     
         if (expenses.length === 0) {
-          return res.status(200).send({ 
-            expenses: {}, 
-            totalExpense: 0, 
-            date 
-          });
+          return res.status(200).send({ expenses: {}, totalExpense: 0, date });
         }
     
         const groupedExpenses = expenses.reduce((acc, expense) => {
           const { category, amount } = expense;
-          acc[category] = (acc[category] || 0) + amount;
+          if (!acc[category]) {
+            acc[category] = 0;
+          }
+          acc[category] += amount;
           return acc;
         }, {});
     
-        const totalExpense = Object.values(groupedExpenses)
-          .reduce((total, amount) => total + amount, 0);
+        const totalExpense = expenses.reduce(
+          (total, expense) => total + expense.amount,
+          0
+        );
     
         res.status(200).send({
           expenses: groupedExpenses,
           totalExpense,
-          date
+          date,
         });
       } catch (error) {
         console.error("Error fetching expenses:", error);
         res.status(500).send({ message: "Internal server error." });
       }
     });
+    
     
 
     // Send a ping to confirm a successful connection
