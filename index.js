@@ -142,7 +142,7 @@ async function run() {
     });
 
     // daily expenses summary get route
-    app.get("/expenses/:userId/:date", async (req, res) => {
+    app.get("/expenses/:userId", async (req, res) => {
       const { userId, date } = req.params;
 
       try {
