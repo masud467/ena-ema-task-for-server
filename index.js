@@ -92,6 +92,16 @@ async function run() {
           });
         }
 
+        // Create a new expense document structure
+    const expenseDoc = {
+      category,
+      purpose,
+      amount: Number(amount),
+      userId,
+      date,
+      createdAt: new Date()
+    };
+
         const numericAmount = Number(amount);
         if (isNaN(numericAmount) || numericAmount <= 0) {
           return res.status(400).send({
@@ -125,11 +135,7 @@ async function run() {
           });
         }
 
-        const result = await expensesCollection.findOneAndUpdate(
-          { userId, category },
-          { $inc: { amount: numericAmount }, $set: { purpose, date } },
-          { upsert: true, returnDocument: "after" }
-        );
+        const result = await expensesCollection.insertOne(expenseDoc);
 
         res.send({
           message: "Expense updated successfully.",
