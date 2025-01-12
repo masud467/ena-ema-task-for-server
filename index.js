@@ -220,41 +220,81 @@ async function run() {
     // });
 
 
-    app.get("/expenses/:userId", async (req, res) => {
+    // app.get("/expenses/:userId", async (req, res) => {
+    //   const { userId } = req.params;
+    //   const { date } = req.query;
+    
+    //   try {
+    //     const expenses = await expensesCollection.find({ userId, date }).toArray();
+    
+    //     if (expenses.length === 0) {
+    //       return res.status(200).send({ expenses: {}, totalExpense: 0, date });
+    //     }
+    
+    //     const groupedExpenses = expenses.reduce((acc, expense) => {
+    //       const { category, amount } = expense;
+    //       if (!acc[category]) {
+    //         acc[category] = 0;
+    //       }
+    //       acc[category] += amount;
+    //       return acc;
+    //     }, {});
+    
+    //     const totalExpense = expenses.reduce(
+    //       (total, expense) => total + expense.amount,
+    //       0
+    //     );
+    
+    //     res.status(200).send({
+    //       expenses: groupedExpenses,
+    //       totalExpense,
+    //       date,
+    //     });
+    //   } catch (error) {
+    //     console.error("Error fetching expenses:", error);
+    //     res.status(500).send({ message: "Internal server error." });
+    //   }
+    // });
+
+
+    app.get("/expenses/:userId/monthly", async (req, res) => {
       const { userId } = req.params;
-      const { date } = req.query;
+      const { month } = req.query; // Format: "YYYY-MM"
     
       try {
-        const expenses = await expensesCollection.find({ userId, date }).toArray();
+        const startDate = new Date(`${month}-01`);
+        const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
     
-        if (expenses.length === 0) {
-          return res.status(200).send({ expenses: {}, totalExpense: 0, date });
-        }
+        const expenses = await expensesCollection
+          .find({
+            userId,
+            date: {
+              $gte: startDate.toISOString().split("T")[0],
+              $lte: endDate.toISOString().split("T")[0],
+            },
+          })
+          .toArray();
     
-        const groupedExpenses = expenses.reduce((acc, expense) => {
-          const { category, amount } = expense;
-          if (!acc[category]) {
-            acc[category] = 0;
+        const groupedExpenses = {};
+    
+        expenses.forEach((expense) => {
+          const { date, category, amount } = expense;
+          if (!groupedExpenses[date]) {
+            groupedExpenses[date] = {};
           }
-          acc[category] += amount;
-          return acc;
-        }, {});
-    
-        const totalExpense = expenses.reduce(
-          (total, expense) => total + expense.amount,
-          0
-        );
-    
-        res.status(200).send({
-          expenses: groupedExpenses,
-          totalExpense,
-          date,
+          if (!groupedExpenses[date][category]) {
+            groupedExpenses[date][category] = 0;
+          }
+          groupedExpenses[date][category] += amount;
         });
+    
+        res.status(200).send(groupedExpenses);
       } catch (error) {
-        console.error("Error fetching expenses:", error);
+        console.error("Error fetching monthly expenses:", error);
         res.status(500).send({ message: "Internal server error." });
       }
     });
+    
     
     
 
